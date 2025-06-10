@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     const client = await auth.getClient()
     const token = await client.getAccessToken()
 
-    const endpoint = `https://us-central1-aiplatform.googleapis.com/v1beta1/projects/cloud-ml-art-generator/locations/us-central1/publishers/google/models/imagen-3:predict`
+    const endpoint = https://us-central1-aiplatform.googleapis.com/v1beta1/projects/prefab-basis-462503-s2/locations/us-central1/publishers/google/models/imagen-3:predict
     
     const payload = {
       instances: [
