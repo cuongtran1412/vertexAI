@@ -47,13 +47,7 @@ export default async function handler(req, res) {
         sampleImageSize: "2048"
       }
     };
-
-    // ================== PHẦN DEBUG ĐÃ THÊM VÀO ==================
-    console.log("--- STARTING VERTEX AI REQUEST ---");
-    console.log("Endpoint URL:", endpoint);
-    console.log("Request Payload:", JSON.stringify(payload, null, 2)); // In ra payload dưới dạng JSON đẹp mắt
-    // ==========================================================
-
+    
     const response = await axios.post(endpoint, payload, {
       headers: {
         Authorization: `Bearer ${token.token}`,
