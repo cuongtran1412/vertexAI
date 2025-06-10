@@ -92,6 +92,7 @@
       });
 
       const data = await res.json();
+      console.log('📦 Data from API:', data); // 👈 THÊM DÒNG NÀY
       if (!data.imageUrl) {
         result.innerHTML = 'Image generation failed.';
         return;
