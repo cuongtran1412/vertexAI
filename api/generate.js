@@ -10,24 +10,14 @@ function buildPrompt({ text, designStyle, colorMood, detailLevel }) {
 }
 
 export default async function handler(req, res) {
-  // --- Thiết lập CORS Headers ---
+  // ... (Các phần CORS và method check giữ nguyên) ...
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Only POST requests allowed' });
 
-  // --- Xử lý CORS Preflight Request ---
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  // --- Chỉ cho phép phương thức POST ---
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Only POST requests allowed' });
-  }
-
-  // --- Bắt đầu khối xử lý chính ---
   try {
-    // 1. Lấy dữ liệu đầu vào
     const { text = '', designStyle = '', colorMood = '', detailLevel = '' } = req.body;
     if (!text || !designStyle || !colorMood || !detailLevel) {
       return res.status(400).json({ error: 'Missing required fields.' });
@@ -35,7 +25,6 @@ export default async function handler(req, res) {
 
     const prompt = buildPrompt({ text, designStyle, colorMood, detailLevel });
 
-    // 2. Xác thực với Google Cloud
     const auth = new GoogleAuth({
       credentials: JSON.parse(process.env.SERVICE_ACCOUNT_JSON),
       scopes: 'https://www.googleapis.com/auth/cloud-platform',
@@ -43,27 +32,27 @@ export default async function handler(req, res) {
     const client = await auth.getClient();
     const token = await client.getAccessToken();
 
-    // 3. Gọi API Vertex AI Imagen 3 (Cấu trúc đã được sửa lại hoàn chỉnh)
     const projectId = 'prefab-basis-462503-s2';
     const location = 'us-central1';
-    const modelId = 'imagen-3.0-generate-001'; // Dùng ID model chính thức
+    const modelId = 'imagen-3.0-generate-001';
     
-    // Endpoint với action :predict là chuẩn nhất
+    // Thử lại với endpoint v1beta1, đây là khả năng cao nhất
     const endpoint = `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:predict`;
     
-    // Payload cho :predict phải có cấu trúc "instances"
     const payload = {
-      instances: [
-        {
-          prompt: prompt
-        }
-      ],
+      instances: [{ prompt: prompt }],
       parameters: {
         sampleCount: 1,
         aspectRatio: "1:1",
-        sampleImageSize: "2048" // <--- THÊM DÒNG NÀY ĐỂ YÊU CẦU ẢNH 2048x2048
+        sampleImageSize: "2048"
       }
     };
+
+    // ================== PHẦN DEBUG ĐÃ THÊM VÀO ==================
+    console.log("--- STARTING VERTEX AI REQUEST ---");
+    console.log("Endpoint URL:", endpoint);
+    console.log("Request Payload:", JSON.stringify(payload, null, 2)); // In ra payload dưới dạng JSON đẹp mắt
+    // ==========================================================
 
     const response = await axios.post(endpoint, payload, {
       headers: {
@@ -78,26 +67,16 @@ export default async function handler(req, res) {
       throw new Error('Imagen 3 failed to return image');
     }
 
-    // 4. Upload ảnh lên Cloudinary
+    // ... (Phần upload Cloudinary giữ nguyên) ...
     const form = new FormData();
     form.append('file', Buffer.from(base64, 'base64'), 'pattern.png');
     form.append('upload_preset', 'ml_default');
-
-    const cloudRes = await axios.post(
-      `https://api.cloudinary.com/v1_1/dv3wx2mvi/image/upload`,
-      form,
-      {
-        headers: form.getHeaders(),
-      }
-    );
-
+    const cloudRes = await axios.post(`https://api.cloudinary.com/v1_1/dv3wx2mvi/image/upload`, form, { headers: form.getHeaders() });
     const imageUrl = cloudRes.data.secure_url;
 
-    // 5. Trả về kết quả thành công
     res.status(200).json({ imageUrl, prompt });
 
   } catch (err) {
-    // Xử lý lỗi chung
     console.error('❌ VertexAI Error:', err.response?.data || err.message);
     res.status(500).json({ error: 'Something went wrong on the server.' });
   }
