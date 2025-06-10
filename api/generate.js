@@ -60,7 +60,8 @@ export default async function handler(req, res) {
       ],
       parameters: {
         sampleCount: 1,
-        aspectRatio: "1:1"
+        aspectRatio: "1:1",
+        sampleImageSize: "2048" // <--- THÊM DÒNG NÀY ĐỂ YÊU CẦU ẢNH 2048x2048
       }
     };
 
