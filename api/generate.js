@@ -34,7 +34,7 @@ export default async function handler(req, res) {
 
     const projectId = 'prefab-basis-462503-s2';
     const location = 'us-central1';
-    const modelId = 'imagen-3.0-generate@latest';
+    const modelId = 'imagen-3.0-generate-001';
     
     // Thử lại với endpoint v1beta1, đây là khả năng cao nhất
     const endpoint = `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:predict`;
