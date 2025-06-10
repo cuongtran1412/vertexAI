@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     const modelId = 'imagen-3.0-generate-001'; // Dùng ID model chính thức
     
     // Endpoint với action :predict là chuẩn nhất
-    const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:predict`;
+    const endpoint = `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:predict`;
     
     // Payload cho :predict phải có cấu trúc "instances"
     const payload = {
