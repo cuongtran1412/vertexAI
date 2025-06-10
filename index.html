@@ -91,17 +91,8 @@
         body: JSON.stringify({ text, designStyle, colorMood, detailLevel })
       });
 
-      const raw = await res.text();
-      console.log('📦 Raw API response:', raw);
       
-      let data;
-      try {
-        data = JSON.parse(raw);
-      } catch (e) {
-        result.innerHTML = '❌ Invalid response format from server';
-        console.error('🛑 Failed to parse JSON:', raw);
-        return;
-      }
+      const data = await res.json();
       if (!data.imageUrl) {
         result.innerHTML = 'Image generation failed.';
         return;
