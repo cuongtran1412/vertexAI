@@ -10,7 +10,6 @@ function buildPrompt({ text, designStyle, colorMood, detailLevel }) {
 }
 
 export default async function handler(req, res) {
-  // ... (Các phần CORS và method check giữ nguyên) ...
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -18,14 +17,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ message: 'Only POST requests allowed' });
 
   try {
-    const { text = '', designStyle = '', colorMood = '', detailLevel = '' } = req.body;
+    const { text = '', designStyle = '', colorMood = '', detailLevel = '', sampleCount = 1 } = req.body;
     if (!text || !designStyle || !colorMood || !detailLevel) {
       return res.status(400).json({ error: 'Missing required fields.' });
     }
 
     const prompt = buildPrompt({ text, designStyle, colorMood, detailLevel });
 
-    // --- Xác thực Google Auth ---
     const auth = new GoogleAuth({
       credentials: JSON.parse(process.env.SERVICE_ACCOUNT_JSON),
       scopes: 'https://www.googleapis.com/auth/cloud-platform',
@@ -39,16 +37,15 @@ export default async function handler(req, res) {
     const endpoint = `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:predict`;
 
     // =================================================================
-    // BƯỚC 1: TẠO ẢNH GỐC 1024x1024
+    // BƯỚC 1: TẠO ẢNH GỐC
     // =================================================================
-    console.log('✅ Bước 1: Bắt đầu tạo ảnh gốc...');
+    console.log(`✅ Bước 1: Bắt đầu tạo ${sampleCount} ảnh gốc...`);
     const generationPayload = {
       instances: [{ prompt: prompt }],
       parameters: {
-        sampleCount: 1,
-        aspectRatio: "1:1", // Tạo ảnh vuông 1024x1024
-        // Ghi chú: `sampleImageSize` không phải là tham số hợp lệ cho Imagen 3.
-        // Kích thước được quyết định bởi aspectRatio.
+        // Cho phép người dùng chọn tạo nhiều ảnh để lựa
+        sampleCount: parseInt(sampleCount, 10), 
+        aspectRatio: "1:1",
       }
     };
 
@@ -59,32 +56,31 @@ export default async function handler(req, res) {
       },
     });
 
+    // Luôn chỉ lấy ảnh ĐẦU TIÊN để upscale, ngay cả khi tạo ra nhiều ảnh
     const originalBase64 = generationResponse.data?.predictions?.[0]?.bytesBase64Encoded;
     if (!originalBase64) {
       console.error('❌ Bước 1 Thất bại: Không nhận được ảnh gốc. Response:', JSON.stringify(generationResponse.data, null, 2));
       throw new Error('Imagen 3 failed to return original image');
     }
-    console.log('👍 Bước 1 Thành công: Đã tạo ảnh gốc.');
+    console.log('👍 Bước 1 Thành công: Đã tạo ảnh gốc. Sẽ upscale ảnh đầu tiên.');
 
     // =================================================================
-    // BƯỚC 2: NÂNG CẤP (UPSCALE) ẢNH LÊN 2x
+    // BƯỚC 2: NÂNG CẤP (UPSCALE) ẢNH
     // =================================================================
     console.log('✅ Bước 2: Bắt đầu nâng cấp ảnh...');
+    
+    // ĐÂY LÀ PHẦN SỬA LỖI QUAN TRỌNG NHẤT
     const upscalePayload = {
-      instances: [
-        {
-          image: {
-            bytesBase64Encoded: originalBase64 // Dùng ảnh từ Bước 1
-          }
-        }
-      ],
+      instances: [ { image: { bytesBase64Encoded: originalBase64 } } ],
+      // payload này KHÔNG chứa 'sampleCount'
       parameters: {
-        mode: "upscale", // Chế độ nâng cấp
+        mode: "upscale",
         upscaleConfig: {
-          upscaleFactor: "x2" // Nâng cấp lên 2 lần (1024 -> 2048)
+          upscaleFactor: "x2"
         }
       }
     };
+
     const upscaleResponse = await axios.post(endpoint, upscalePayload, {
       headers: {
         Authorization: `Bearer ${token.token}`,
@@ -100,10 +96,9 @@ export default async function handler(req, res) {
     console.log('👍 Bước 2 Thành công: Đã nâng cấp ảnh.');
 
     // =================================================================
-    // BƯỚC 3: UPLOAD ẢNH ĐÃ NÂNG CẤP LÊN CLOUDINARY
+    // BƯỚC 3: UPLOAD ẢNH LÊN CLOUDINARY
     // =================================================================
     const form = new FormData();
-    // Dùng ảnh `upscaledBase64` để upload
     form.append('file', Buffer.from(upscaledBase64, 'base64'), 'pattern_2048x2048.png');
     form.append('upload_preset', 'ml_default');
     const cloudRes = await axios.post(`https://api.cloudinary.com/v1_1/dv3wx2mvi/image/upload`, form, { headers: form.getHeaders() });
@@ -112,7 +107,6 @@ export default async function handler(req, res) {
     res.status(200).json({ imageUrl, prompt });
 
   } catch (err) {
-    // Log lỗi chi tiết hơn để debug
     const errorMessage = err.response?.data?.error?.message || err.response?.data || err.message;
     console.error('❌ Lỗi Toàn Trình:', errorMessage);
     if (err.response?.data) {
