@@ -1,0 +1,9 @@
+{
+  "name": "imagen3-vercel",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "google-auth-library": "^9.0.0",
+    "axios": "^1.6.8"
+  }
+}
