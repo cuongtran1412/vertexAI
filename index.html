@@ -1,0 +1,165 @@
+<!-- Custom AI Form START -->
+<div class="product-option full-width custom-design-form" style="margin-bottom: 30px; clear: both;margin-top: 10px;">
+
+  <label>Design Style:</label>
+  <select id="design-style">
+    <option value="Cartoon / Cute">Cartoon / Cute</option>
+    <option value="Minimalist">Minimalist</option>
+    <option value="Vintage / Retro">Vintage / Retro</option>
+    <option value="Watercolor">Watercolor</option>
+    <option value="Graffiti / Street Art">Graffiti / Street Art</option>
+    <option value="Realistic">Realistic</option>
+    <option value="3D Render">3D Render</option>
+    <option value="Abstract">Abstract</option>
+    <option value="Pixel Art">Pixel Art</option>
+    <option value="Fantasy Illustration">Fantasy Illustration</option>
+  </select>
+
+  <label>Color Mood:</label>
+  <select id="color-mood">
+    <option value="Pastel">Pastel</option>
+    <option value="Neon">Neon</option>
+    <option value="Earth Tones">Earth Tones</option>
+    <option value="Black & White">Black & White</option>
+    <option value="Colorful">Colorful</option>
+    <option value="Monochrome">Monochrome</option>
+    <option value="Muted Colors">Muted Colors</option>
+  </select>
+
+  <label>Detail Level:</label>
+  <select id="detail-level">
+    <option value="Simple, Clean Lines">Simple</option>
+    <option value="Moderately Detailed">Moderate</option>
+    <option value="Highly Detailed, Intricate Elements">Highly Detailed</option>
+    <option value="Only Line Drawing, No Fill">Line Art</option>
+    <option value="Flat Style, No Shading">Flat Illustration</option>
+  </select>
+
+  <label>Describe your design:</label>
+  <textarea id="design-desc" placeholder="e.g., unicorns and rainbows" class="input--full"></textarea>
+  <button id="generate-btn" type="button">Generate Design</button>
+
+  <!-- Hidden properties to be sent with Shopify cart -->
+  <input type="hidden" name="properties[Design Idea]" id="input-prompt">
+  <input type="hidden" name="properties[Design Style]" id="input-style">
+  <input type="hidden" name="properties[Color Mood]" id="input-color">
+  <input type="hidden" name="properties[Detail Level]" id="input-detail">
+  <input type="hidden" name="properties[_AI Image URL]" id="ai-image-url" style="display: none;">
+  <input type="hidden" name="properties[_AI Mockup URL]" id="ai-mockup-url">
+  <div id="result" style="margin-top: 20px;"></div>
+</div>
+
+<script>
+  document.getElementById('generate-btn').addEventListener('click', async () => {
+    const text = document.getElementById('design-desc').value;
+    const designStyle = document.getElementById('design-style').value;
+    const colorMood = document.getElementById('color-mood').value;
+    const detailLevel = document.getElementById('detail-level').value;
+  
+    const result = document.getElementById('result');
+    const imageInput = document.getElementById('ai-image-url');
+    const mockupInput = document.getElementById('ai-mockup-url');
+
+    // ✅ Lấy variant khách đã chọn
+    const selectedStyleInput = document.querySelector('.swatch[data-option-index="2"] input[type="radio"]:checked');
+    const selectedStyle = selectedStyleInput?.value.trim().toLowerCase() || '';
+  
+    let baseUrl = '', shadowUrl = '';
+
+    if (selectedStyle.includes('hoodie')) {
+      baseUrl = "https://res.cloudinary.com/dv3wx2mvi/image/upload/v1748187400/ipqq3da4ullpdre8xozr.png";
+      shadowUrl = "https://res.cloudinary.com/dv3wx2mvi/image/upload/v1748187399/pyuqx8gtj5wlpoi1qxmk.png";
+    } else if (selectedStyle.includes('pajama')) {
+      baseUrl = "https://res.cloudinary.com/dv3wx2mvi/image/upload/v1749097973/hpjik1p9gi11hexr63ag.png";
+      shadowUrl = "https://res.cloudinary.com/dv3wx2mvi/image/upload/v1749097973/rqg0rvfw2iwd1eogoe6j.png";
+    } else if (selectedStyle.includes('t-shirt') || selectedStyle.includes('t shirt')) {
+      baseUrl = "https://res.cloudinary.com/dv3wx2mvi/image/upload/v1749096999/xuezftfnthtojq9xi5gl.png";
+      shadowUrl = "https://res.cloudinary.com/dv3wx2mvi/image/upload/v1749096998/tm34cwd5tyitsrph2twp.png";
+    }
+
+    result.innerHTML = `
+      <div class="ai-spinner-container">
+        <div class="ai-spinner"></div>
+        <p>Generating your design...</p>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, designStyle, colorMood, detailLevel })
+      });
+
+      const data = await res.json();
+      if (!data.imageUrl) {
+        result.innerHTML = 'Image generation failed.';
+        return;
+      }
+
+      imageInput.value = data.imageUrl;
+      document.getElementById('input-prompt').value = text;
+      document.getElementById('input-style').value = designStyle;
+      document.getElementById('input-color').value = colorMood;
+      document.getElementById('input-detail').value = detailLevel;    
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 1024;
+      canvas.height = 1536;
+      canvas.style = "width:100%; max-width:400px; display:block; margin:0 auto;";
+      const ctx = canvas.getContext("2d");
+
+      const [base, pattern, shadow] = await Promise.all([
+        loadImageSafe(baseUrl),
+        loadImageSafe(data.imageUrl),
+        loadImageSafe(shadowUrl)
+      ]);
+
+      const patternFill = ctx.createPattern(pattern, "repeat");
+      const scale = 0.6;
+      ctx.save();
+      ctx.scale(scale, scale);
+      ctx.fillStyle = patternFill;
+      ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
+      ctx.restore();
+
+      ctx.drawImage(base, 0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = "multiply";
+      ctx.drawImage(shadow, 0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = "source-over";
+
+      canvas.toBlob(async (blob) => {
+        const formData = new FormData();
+        formData.append('file', blob);
+        formData.append('upload_preset', 'ml_default');
+
+        try {
+          const uploadRes = await fetch('https://api.cloudinary.com/v1_1/dv3wx2mvi/image/upload', {
+            method: 'POST',
+            body: formData
+          });
+          const uploadData = await uploadRes.json();
+          mockupInput.value = uploadData.secure_url;
+          result.innerHTML = '';
+          result.appendChild(canvas);
+        } catch (err) {
+          result.innerHTML = 'Error uploading to Cloudinary.';
+          console.error(err);
+        }
+      }, 'image/png');
+
+    } catch (err) {
+      result.innerHTML = 'Oops! Looks like our AI artist is taking a break. Try again in a few seconds — your custom design will be worth the wait! 🐾';
+      console.error(err);
+    }
+  });
+
+  function loadImageSafe(src) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => resolve(img);
+      img.src = src;
+    });
+  }
+</script>
